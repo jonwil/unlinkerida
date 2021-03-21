@@ -632,6 +632,7 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
                     switch (insn.ops[0].type)
                     {
                     case o_mem:
+                    case o_displ:
                         if (!is_numop0(get_flags(k)) && IsSymbol(insn.ops[0].addr))
                         {
                             Symbol& fsym = FindSymbol(insn.ops[0].addr);
@@ -675,6 +676,7 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
                     switch (insn.ops[1].type)
                     {
                     case o_mem:
+                    case o_displ:
                         if (!is_numop1(get_flags(k)) && IsSymbol(insn.ops[1].addr))
                         {
                             Symbol& fsym = FindSymbol(insn.ops[1].addr);
@@ -737,7 +739,7 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
         }
         for (size_t j = 0; j < DataSymbols.size(); j++)
         {
-            if (!DataSymbols[j].IsExtern && is_off0(get_flags(DataSymbols[j].Address)))
+            if (!DataSymbols[j].IsExtern && is_off0(get_flags(DataSymbols[j].Address)) && DataSymbols[j].Data)
             {
                 for (unsigned long k = 0; k < DataSymbols[j].Size; k += 4)
                 {
@@ -978,6 +980,10 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
                 else
                 {
                     sections[cursection].PointerToRawData = 0;
+                    sections[cursection].PointerToRelocations = 0;
+                    sections[cursection].NumberOfRelocations = 0;
+                    sectionrelocations[cursection] = 0;
+                    sectionrelocsymbols[cursection] = 0;
                 }
                 sections[cursection].PointerToLinenumbers = 0;
                 sections[cursection].NumberOfLinenumbers = 0;
@@ -989,6 +995,7 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
                 }
                 else
                 {
+                    sectiondata[cursection] = 0;
                     sections[cursection].Characteristics = IMAGE_SCN_CNT_UNINITIALIZED_DATA | IMAGE_SCN_ALIGN_4BYTES | IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_WRITE;
                 }
                 cursection++;
@@ -1249,6 +1256,10 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
                 else
                 {
                     sections[cursection].PointerToRawData = 0;
+                    sections[cursection].PointerToRelocations = 0;
+                    sections[cursection].NumberOfRelocations = 0;
+                    sectionrelocations[cursection] = 0;
+                    sectionrelocsymbols[cursection] = 0;
                 }
                 sections[cursection].PointerToLinenumbers = 0;
                 sections[cursection].NumberOfLinenumbers = 0;
@@ -1260,6 +1271,7 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
                 }
                 else
                 {
+                    sectiondata[cursection] = 0;
                     sections[cursection].Characteristics = IMAGE_SCN_CNT_UNINITIALIZED_DATA | IMAGE_SCN_ALIGN_4BYTES | IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_WRITE;
                 }
                 cursection++;
