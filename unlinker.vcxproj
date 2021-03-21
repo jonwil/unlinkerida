@@ -57,7 +57,7 @@
       <ConformanceMode>true</ConformanceMode>
       <AdditionalIncludeDirectories>c:\temp\idasdk\include</AdditionalIncludeDirectories>
       <TreatWarningAsError>true</TreatWarningAsError>
-      <DisableSpecificWarnings>4267;4514;4244;4820;4365;5204;4242;4626;5039;4201;5027;4100;4710;5045</DisableSpecificWarnings>
+      <DisableSpecificWarnings>4267;4514;4244;4820;4365;5204;4242;4626;5039;4201;5027;4100;4710;5045;4711</DisableSpecificWarnings>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -78,7 +78,7 @@
       <ConformanceMode>true</ConformanceMode>
       <AdditionalIncludeDirectories>c:\temp\idasdk\include</AdditionalIncludeDirectories>
       <TreatWarningAsError>true</TreatWarningAsError>
-      <DisableSpecificWarnings>4267;4514;4244;4820;4365;5204;4242;4626;5039;4201;5027;4100;4710;5045</DisableSpecificWarnings>
+      <DisableSpecificWarnings>4267;4514;4244;4820;4365;5204;4242;4626;5039;4201;5027;4100;4710;5045;4711</DisableSpecificWarnings>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
