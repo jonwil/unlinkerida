@@ -55,8 +55,8 @@ enum FeatureEnum
     UsesClr = 0x2,
     ClrSafe = 0x4,
     SupportsWinRT = 0x8,
-    Unknown1 = 0x10,
-    Unknown2 = 0x80,
+    Report_Dev11 = 0x10,
+    C_CppModule = 0x80,
     SecurityCheck = 0x100,
     SDL = 0x200,
     ControlFlowGuard = 0x400,
@@ -68,7 +68,7 @@ enum FeatureEnum
     Unknown3 = 0x10000,
     RTTIReportingIgnoreDisabled = 0x20000,
     CompileTargetsKernel = 0x40000000,
-    Unknown4 = 0x80000000,
+    KernelAware = 0x80000000,
 };
 enum CompileType
 {
@@ -418,6 +418,9 @@ static ahandler_unlink_extern_t ahandler_unlink_extern;
 qvector<Symbol> CodeSymbols;
 qvector<Symbol> RDataSymbols;
 qvector<Symbol> DataSymbols;
+qvector<Symbol> IDataSymbols;
+qvector<Symbol> BSSSymbols;
+
 
 bool IsSymbol(unsigned long address)
 {
@@ -438,6 +441,20 @@ bool IsSymbol(unsigned long address)
     for (size_t i = 0; i < DataSymbols.size(); i++)
     {
         if (address >= DataSymbols[i].Address && address <= DataSymbols[i].Address + DataSymbols[i].Size)
+        {
+            return true;
+        }
+    }
+    for (size_t i = 0; i < IDataSymbols.size(); i++)
+    {
+        if (address >= IDataSymbols[i].Address && address <= IDataSymbols[i].Address + IDataSymbols[i].Size)
+        {
+            return true;
+        }
+    }
+    for (size_t i = 0; i < BSSSymbols.size(); i++)
+    {
+        if (address >= BSSSymbols[i].Address && address <= BSSSymbols[i].Address + BSSSymbols[i].Size)
         {
             return true;
         }
@@ -468,14 +485,30 @@ Symbol& FindSymbol(unsigned long address)
             return DataSymbols[i];
         }
     }
+    for (size_t i = 0; i < IDataSymbols.size(); i++)
+    {
+        if (address >= IDataSymbols[i].Address && address <= IDataSymbols[i].Address + IDataSymbols[i].Size)
+        {
+            return IDataSymbols[i];
+        }
+    }
+    for (size_t i = 0; i < BSSSymbols.size(); i++)
+    {
+        if (address >= BSSSymbols[i].Address && address <= BSSSymbols[i].Address + BSSSymbols[i].Size)
+        {
+            return BSSSymbols[i];
+        }
+    }
     __assume(false);
 }
 
 void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
 {
     CodeSymbols.clear();
-    DataSymbols.clear();
     RDataSymbols.clear();
+    DataSymbols.clear();
+    IDataSymbols.clear();
+    BSSSymbols.clear();
     qstring str = name;
     str += ".obj";
     char* path = ask_file(true, str.c_str(), "*.obj");
@@ -549,6 +582,48 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
                         s.Data = nullptr;
                     }
                     DataSymbols.push_back(s);
+                }
+            }
+            else if (segment == ".idata")
+            {
+                qstring data_name;
+                if (get_name(&data_name, ea) > 0)
+                {
+                    s.Name = data_name;
+                    s.Address = ea;
+                    s.Size = get_item_size(ea);
+                    s.IsExtern = vector[i].is_extern;
+                    if (!s.IsExtern && is_loaded(s.Address))
+                    {
+                        s.Data = new unsigned char[s.Size];
+                        get_bytes(s.Data, s.Size, s.Address);
+                    }
+                    else
+                    {
+                        s.Data = nullptr;
+                    }
+                    IDataSymbols.push_back(s);
+                }
+            }
+            else if (segment == ".bss")
+            {
+                qstring data_name;
+                if (get_name(&data_name, ea) > 0)
+                {
+                    s.Name = data_name;
+                    s.Address = ea;
+                    s.Size = get_item_size(ea);
+                    s.IsExtern = vector[i].is_extern;
+                    if (!s.IsExtern && is_loaded(s.Address))
+                    {
+                        s.Data = new unsigned char[s.Size];
+                        get_bytes(s.Data, s.Size, s.Address);
+                    }
+                    else
+                    {
+                        s.Data = nullptr;
+                    }
+                    BSSSymbols.push_back(s);
                 }
             }
         }
@@ -725,6 +800,28 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
                 sectioncount++;
             }
         }
+        for (size_t i = 0; i < IDataSymbols.size(); i++)
+        {
+            symbolcount++;
+            stringtablesize += IDataSymbols[i].Name.length();
+            stringtablesize++;
+            if (!IDataSymbols[i].IsExtern)
+            {
+                symbolcount++;
+                sectioncount++;
+            }
+        }
+        for (size_t i = 0; i < BSSSymbols.size(); i++)
+        {
+            symbolcount++;
+            stringtablesize += BSSSymbols[i].Name.length();
+            stringtablesize++;
+            if (!BSSSymbols[i].IsExtern)
+            {
+                symbolcount++;
+                sectioncount++;
+            }
+        }
         char OutputFull[MAX_PATH];
         _fullpath(OutputFull, path, MAX_PATH);
         const char* CompilerString = "Microsoft (R) Optimizing Compiler";
@@ -805,7 +902,7 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
         int cursymnum = 1;
         int CompileType = COMPILE_CPP;
         int CompilerIDVersion = 29913;
-        int FeatureEnum = Unknown1 | Unknown2 | Unknown3 | SafeSEH | Unknown4;
+        int FeatureEnum = Report_Dev11 | C_CppModule | Unknown3 | SafeSEH | KernelAware;
         memcpy(symbols[cursymbol].symbol.N.ShortName, "@comp.id", 8);
         symbols[cursymbol].symbol.Value = (CompileType << 16) | CompilerIDVersion;
         symbols[cursymbol].symbol.SectionNumber = IMAGE_SYM_ABSOLUTE;
@@ -1083,6 +1180,156 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
             strpos += RDataSymbols[i].Name.length();
             strpos++;
             stroffset += RDataSymbols[i].Name.length();
+            stroffset++;
+        }
+        for (size_t i = 0; i < IDataSymbols.size(); i++)
+        {
+            if (!IDataSymbols[i].IsExtern)
+            {
+                memcpy(sections[cursection].Name, ".data\0\0\0", 8);
+                sections[cursection].Misc.VirtualSize = 0;
+                sections[cursection].VirtualAddress = 0;
+                sections[cursection].SizeOfRawData = IDataSymbols[i].Size;
+                sections[cursection].PointerToRawData = CurrentFilePos;
+                if (IDataSymbols[i].Relocations.size())
+                {
+                    sections[cursection].PointerToRelocations = CurrentFilePos;
+                    sections[cursection].NumberOfRelocations = (WORD)IDataSymbols[i].Relocations.size();
+                    CurrentFilePos += IDataSymbols[i].Relocations.size() * sizeof(IMAGE_RELOCATION);
+                    sectionrelocations[cursection] = new IMAGE_RELOCATION[IDataSymbols[i].Relocations.size()];
+                    sectionrelocsymbols[cursection] = &IDataSymbols[i].Relocations;
+                    for (size_t j = 0; j < IDataSymbols[i].Relocations.size(); j++)
+                    {
+                        sectionrelocations[cursection][j].VirtualAddress = IDataSymbols[i].Relocations[j].Rva;
+                        sectionrelocations[cursection][j].SymbolTableIndex = 0;
+                        sectionrelocations[cursection][j].Type = IDataSymbols[i].Relocations[j].Type;
+                    }
+                }
+                else
+                {
+                    sections[cursection].PointerToRelocations = 0;
+                    sections[cursection].NumberOfRelocations = 0;
+                    sectionrelocations[cursection] = 0;
+                    sectionrelocsymbols[cursection] = 0;
+                }
+                sections[cursection].PointerToLinenumbers = 0;
+                sections[cursection].NumberOfLinenumbers = 0;
+                sections[cursection].Characteristics = IMAGE_SCN_CNT_INITIALIZED_DATA | IMAGE_SCN_ALIGN_4BYTES | IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_WRITE;
+                sectiondata[cursection] = IDataSymbols[i].Data;
+                cursection++;
+                CurrentFilePos += IDataSymbols[i].Size;
+                IDataSymbols[i].SectionNumber = cursection;
+                IDataSymbols[i].SectionSymbolNumber = cursymnum;
+                memcpy(symbols[cursymbol].symbol.N.ShortName, ".data\0\0\0", 8);
+                symbols[cursymbol].symbol.Value = 0;
+                symbols[cursymbol].symbol.SectionNumber = (SHORT)cursection;
+                symbols[cursymbol].symbol.Type = 0;
+                symbols[cursymbol].symbol.StorageClass = IMAGE_SYM_CLASS_STATIC;
+                symbols[cursymbol].symbol.NumberOfAuxSymbols = 1;
+                symbols[cursymbol].aux.Section.Length = IDataSymbols[i].Size;
+                symbols[cursymbol].aux.Section.NumberOfRelocations = 0;
+                symbols[cursymbol].aux.Section.NumberOfLinenumbers = 0;
+                symbols[cursymbol].aux.Section.CheckSum = CRC_MS(IDataSymbols[i].Data, IDataSymbols[i].Size, 0);
+                symbols[cursymbol].aux.Section.Number = 0;
+                symbols[cursymbol].aux.Section.Selection = 0;
+                symbols[cursymbol].aux.Section.bReserved = 0;
+                symbols[cursymbol].aux.Section.HighNumber = 0;
+                cursymbol++;
+                cursymnum++;
+                cursymnum++;
+            }
+        }
+        for (size_t i = 0; i < IDataSymbols.size(); i++)
+        {
+            IDataSymbols[i].EntrySymbolNumber = cursymnum;
+            symbols[cursymbol].symbol.N.Name.Short = 0;
+            symbols[cursymbol].symbol.N.Name.Long = stroffset;
+            symbols[cursymbol].symbol.Value = 0;
+            symbols[cursymbol].symbol.SectionNumber = (SHORT)IDataSymbols[i].SectionNumber;
+            symbols[cursymbol].symbol.Type = 0;
+            symbols[cursymbol].symbol.StorageClass = IMAGE_SYM_CLASS_EXTERNAL;
+            symbols[cursymbol].symbol.NumberOfAuxSymbols = 0;
+            cursymbol++;
+            cursymnum++;
+            qstrncpy(strpos, IDataSymbols[i].Name.c_str(), stringtablesize);
+            strpos += IDataSymbols[i].Name.length();
+            strpos++;
+            stroffset += IDataSymbols[i].Name.length();
+            stroffset++;
+        }
+        for (size_t i = 0; i < BSSSymbols.size(); i++)
+        {
+            if (!BSSSymbols[i].IsExtern)
+            {
+                memcpy(sections[cursection].Name, ".data\0\0\0", 8);
+                sections[cursection].Misc.VirtualSize = 0;
+                sections[cursection].VirtualAddress = 0;
+                sections[cursection].SizeOfRawData = BSSSymbols[i].Size;
+                sections[cursection].PointerToRawData = CurrentFilePos;
+                if (BSSSymbols[i].Relocations.size())
+                {
+                    sections[cursection].PointerToRelocations = CurrentFilePos;
+                    sections[cursection].NumberOfRelocations = (WORD)BSSSymbols[i].Relocations.size();
+                    CurrentFilePos += BSSSymbols[i].Relocations.size() * sizeof(IMAGE_RELOCATION);
+                    sectionrelocations[cursection] = new IMAGE_RELOCATION[BSSSymbols[i].Relocations.size()];
+                    sectionrelocsymbols[cursection] = &BSSSymbols[i].Relocations;
+                    for (size_t j = 0; j < BSSSymbols[i].Relocations.size(); j++)
+                    {
+                        sectionrelocations[cursection][j].VirtualAddress = BSSSymbols[i].Relocations[j].Rva;
+                        sectionrelocations[cursection][j].SymbolTableIndex = 0;
+                        sectionrelocations[cursection][j].Type = BSSSymbols[i].Relocations[j].Type;
+                    }
+                }
+                else
+                {
+                    sections[cursection].PointerToRelocations = 0;
+                    sections[cursection].NumberOfRelocations = 0;
+                    sectionrelocations[cursection] = 0;
+                    sectionrelocsymbols[cursection] = 0;
+                }
+                sections[cursection].PointerToLinenumbers = 0;
+                sections[cursection].NumberOfLinenumbers = 0;
+                sections[cursection].Characteristics = IMAGE_SCN_CNT_INITIALIZED_DATA | IMAGE_SCN_ALIGN_4BYTES | IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_WRITE;
+                sectiondata[cursection] = BSSSymbols[i].Data;
+                cursection++;
+                CurrentFilePos += BSSSymbols[i].Size;
+                BSSSymbols[i].SectionNumber = cursection;
+                BSSSymbols[i].SectionSymbolNumber = cursymnum;
+                memcpy(symbols[cursymbol].symbol.N.ShortName, ".data\0\0\0", 8);
+                symbols[cursymbol].symbol.Value = 0;
+                symbols[cursymbol].symbol.SectionNumber = (SHORT)cursection;
+                symbols[cursymbol].symbol.Type = 0;
+                symbols[cursymbol].symbol.StorageClass = IMAGE_SYM_CLASS_STATIC;
+                symbols[cursymbol].symbol.NumberOfAuxSymbols = 1;
+                symbols[cursymbol].aux.Section.Length = BSSSymbols[i].Size;
+                symbols[cursymbol].aux.Section.NumberOfRelocations = 0;
+                symbols[cursymbol].aux.Section.NumberOfLinenumbers = 0;
+                symbols[cursymbol].aux.Section.CheckSum = CRC_MS(BSSSymbols[i].Data, BSSSymbols[i].Size, 0);
+                symbols[cursymbol].aux.Section.Number = 0;
+                symbols[cursymbol].aux.Section.Selection = 0;
+                symbols[cursymbol].aux.Section.bReserved = 0;
+                symbols[cursymbol].aux.Section.HighNumber = 0;
+                cursymbol++;
+                cursymnum++;
+                cursymnum++;
+            }
+        }
+        for (size_t i = 0; i < BSSSymbols.size(); i++)
+        {
+            BSSSymbols[i].EntrySymbolNumber = cursymnum;
+            symbols[cursymbol].symbol.N.Name.Short = 0;
+            symbols[cursymbol].symbol.N.Name.Long = stroffset;
+            symbols[cursymbol].symbol.Value = 0;
+            symbols[cursymbol].symbol.SectionNumber = (SHORT)BSSSymbols[i].SectionNumber;
+            symbols[cursymbol].symbol.Type = 0;
+            symbols[cursymbol].symbol.StorageClass = IMAGE_SYM_CLASS_EXTERNAL;
+            symbols[cursymbol].symbol.NumberOfAuxSymbols = 0;
+            cursymbol++;
+            cursymnum++;
+            qstrncpy(strpos, BSSSymbols[i].Name.c_str(), stringtablesize);
+            strpos += BSSSymbols[i].Name.length();
+            strpos++;
+            stroffset += BSSSymbols[i].Name.length();
             stroffset++;
         }
         FileHeader.PointerToSymbolTable = CurrentFilePos;
