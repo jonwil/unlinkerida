@@ -592,16 +592,8 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
                     s.Name = data_name;
                     s.Address = ea;
                     s.Size = get_item_size(ea);
-                    s.IsExtern = vector[i].is_extern;
-                    if (!s.IsExtern && is_loaded(s.Address))
-                    {
-                        s.Data = new unsigned char[s.Size];
-                        get_bytes(s.Data, s.Size, s.Address);
-                    }
-                    else
-                    {
-                        s.Data = nullptr;
-                    }
+                    s.IsExtern = true;
+                    s.Data = nullptr;
                     IDataSymbols.push_back(s);
                 }
             }
@@ -958,34 +950,48 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
                 sections[cursection].Misc.VirtualSize = 0;
                 sections[cursection].VirtualAddress = 0;
                 sections[cursection].SizeOfRawData = DataSymbols[i].Size;
-                sections[cursection].PointerToRawData = CurrentFilePos;
-                if (DataSymbols[i].Relocations.size())
+                if (DataSymbols[i].Data)
                 {
-                    sections[cursection].PointerToRelocations = CurrentFilePos;
-                    sections[cursection].NumberOfRelocations = (WORD)DataSymbols[i].Relocations.size();
-                    CurrentFilePos += DataSymbols[i].Relocations.size() * sizeof(IMAGE_RELOCATION);
-                    sectionrelocations[cursection] = new IMAGE_RELOCATION[DataSymbols[i].Relocations.size()];
-                    sectionrelocsymbols[cursection] = &DataSymbols[i].Relocations;
-                    for (size_t j = 0; j < DataSymbols[i].Relocations.size(); j++)
+                    sections[cursection].PointerToRawData = CurrentFilePos;
+                    if (DataSymbols[i].Relocations.size())
                     {
-                        sectionrelocations[cursection][j].VirtualAddress = DataSymbols[i].Relocations[j].Rva;
-                        sectionrelocations[cursection][j].SymbolTableIndex = 0;
-                        sectionrelocations[cursection][j].Type = DataSymbols[i].Relocations[j].Type;
+                        sections[cursection].PointerToRelocations = CurrentFilePos;
+                        sections[cursection].NumberOfRelocations = (WORD)DataSymbols[i].Relocations.size();
+                        CurrentFilePos += DataSymbols[i].Relocations.size() * sizeof(IMAGE_RELOCATION);
+                        sectionrelocations[cursection] = new IMAGE_RELOCATION[DataSymbols[i].Relocations.size()];
+                        sectionrelocsymbols[cursection] = &DataSymbols[i].Relocations;
+                        for (size_t j = 0; j < DataSymbols[i].Relocations.size(); j++)
+                        {
+                            sectionrelocations[cursection][j].VirtualAddress = DataSymbols[i].Relocations[j].Rva;
+                            sectionrelocations[cursection][j].SymbolTableIndex = 0;
+                            sectionrelocations[cursection][j].Type = DataSymbols[i].Relocations[j].Type;
+                        }
+                    }
+                    else
+                    {
+                        sections[cursection].PointerToRelocations = 0;
+                        sections[cursection].NumberOfRelocations = 0;
+                        sectionrelocations[cursection] = 0;
+                        sectionrelocsymbols[cursection] = 0;
                     }
                 }
                 else
                 {
-                    sections[cursection].PointerToRelocations = 0;
-                    sections[cursection].NumberOfRelocations = 0;
-                    sectionrelocations[cursection] = 0;
-                    sectionrelocsymbols[cursection] = 0;
+                    sections[cursection].PointerToRawData = 0;
                 }
                 sections[cursection].PointerToLinenumbers = 0;
                 sections[cursection].NumberOfLinenumbers = 0;
-                sections[cursection].Characteristics = IMAGE_SCN_CNT_INITIALIZED_DATA | IMAGE_SCN_ALIGN_4BYTES | IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_WRITE;
-                sectiondata[cursection] = DataSymbols[i].Data;
+                if (DataSymbols[i].Data)
+                {
+                    sections[cursection].Characteristics = IMAGE_SCN_CNT_INITIALIZED_DATA | IMAGE_SCN_ALIGN_4BYTES | IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_WRITE;
+                    sectiondata[cursection] = DataSymbols[i].Data;
+                    CurrentFilePos += DataSymbols[i].Size;
+                }
+                else
+                {
+                    sections[cursection].Characteristics = IMAGE_SCN_CNT_UNINITIALIZED_DATA | IMAGE_SCN_ALIGN_4BYTES | IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_WRITE;
+                }
                 cursection++;
-                CurrentFilePos += DataSymbols[i].Size;
                 DataSymbols[i].SectionNumber = cursection;
                 DataSymbols[i].SectionSymbolNumber = cursymnum;
                 memcpy(symbols[cursymbol].symbol.N.ShortName, ".data\0\0\0", 8);
@@ -997,7 +1003,14 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
                 symbols[cursymbol].aux.Section.Length = DataSymbols[i].Size;
                 symbols[cursymbol].aux.Section.NumberOfRelocations = 0;
                 symbols[cursymbol].aux.Section.NumberOfLinenumbers = 0;
-                symbols[cursymbol].aux.Section.CheckSum = CRC_MS(DataSymbols[i].Data, DataSymbols[i].Size, 0);
+                if (DataSymbols[i].Data)
+                {
+                    symbols[cursymbol].aux.Section.CheckSum = CRC_MS(DataSymbols[i].Data, DataSymbols[i].Size, 0);
+                }
+                else
+                {
+                    symbols[cursymbol].aux.Section.CheckSum = 0;
+                }
                 symbols[cursymbol].aux.Section.Number = 0;
                 symbols[cursymbol].aux.Section.Selection = 0;
                 symbols[cursymbol].aux.Section.bReserved = 0;
@@ -1184,63 +1197,6 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
         }
         for (size_t i = 0; i < IDataSymbols.size(); i++)
         {
-            if (!IDataSymbols[i].IsExtern)
-            {
-                memcpy(sections[cursection].Name, ".data\0\0\0", 8);
-                sections[cursection].Misc.VirtualSize = 0;
-                sections[cursection].VirtualAddress = 0;
-                sections[cursection].SizeOfRawData = IDataSymbols[i].Size;
-                sections[cursection].PointerToRawData = CurrentFilePos;
-                if (IDataSymbols[i].Relocations.size())
-                {
-                    sections[cursection].PointerToRelocations = CurrentFilePos;
-                    sections[cursection].NumberOfRelocations = (WORD)IDataSymbols[i].Relocations.size();
-                    CurrentFilePos += IDataSymbols[i].Relocations.size() * sizeof(IMAGE_RELOCATION);
-                    sectionrelocations[cursection] = new IMAGE_RELOCATION[IDataSymbols[i].Relocations.size()];
-                    sectionrelocsymbols[cursection] = &IDataSymbols[i].Relocations;
-                    for (size_t j = 0; j < IDataSymbols[i].Relocations.size(); j++)
-                    {
-                        sectionrelocations[cursection][j].VirtualAddress = IDataSymbols[i].Relocations[j].Rva;
-                        sectionrelocations[cursection][j].SymbolTableIndex = 0;
-                        sectionrelocations[cursection][j].Type = IDataSymbols[i].Relocations[j].Type;
-                    }
-                }
-                else
-                {
-                    sections[cursection].PointerToRelocations = 0;
-                    sections[cursection].NumberOfRelocations = 0;
-                    sectionrelocations[cursection] = 0;
-                    sectionrelocsymbols[cursection] = 0;
-                }
-                sections[cursection].PointerToLinenumbers = 0;
-                sections[cursection].NumberOfLinenumbers = 0;
-                sections[cursection].Characteristics = IMAGE_SCN_CNT_INITIALIZED_DATA | IMAGE_SCN_ALIGN_4BYTES | IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_WRITE;
-                sectiondata[cursection] = IDataSymbols[i].Data;
-                cursection++;
-                CurrentFilePos += IDataSymbols[i].Size;
-                IDataSymbols[i].SectionNumber = cursection;
-                IDataSymbols[i].SectionSymbolNumber = cursymnum;
-                memcpy(symbols[cursymbol].symbol.N.ShortName, ".data\0\0\0", 8);
-                symbols[cursymbol].symbol.Value = 0;
-                symbols[cursymbol].symbol.SectionNumber = (SHORT)cursection;
-                symbols[cursymbol].symbol.Type = 0;
-                symbols[cursymbol].symbol.StorageClass = IMAGE_SYM_CLASS_STATIC;
-                symbols[cursymbol].symbol.NumberOfAuxSymbols = 1;
-                symbols[cursymbol].aux.Section.Length = IDataSymbols[i].Size;
-                symbols[cursymbol].aux.Section.NumberOfRelocations = 0;
-                symbols[cursymbol].aux.Section.NumberOfLinenumbers = 0;
-                symbols[cursymbol].aux.Section.CheckSum = CRC_MS(IDataSymbols[i].Data, IDataSymbols[i].Size, 0);
-                symbols[cursymbol].aux.Section.Number = 0;
-                symbols[cursymbol].aux.Section.Selection = 0;
-                symbols[cursymbol].aux.Section.bReserved = 0;
-                symbols[cursymbol].aux.Section.HighNumber = 0;
-                cursymbol++;
-                cursymnum++;
-                cursymnum++;
-            }
-        }
-        for (size_t i = 0; i < IDataSymbols.size(); i++)
-        {
             IDataSymbols[i].EntrySymbolNumber = cursymnum;
             symbols[cursymbol].symbol.N.Name.Short = 0;
             symbols[cursymbol].symbol.N.Name.Long = stroffset;
@@ -1261,41 +1217,55 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
         {
             if (!BSSSymbols[i].IsExtern)
             {
-                memcpy(sections[cursection].Name, ".data\0\0\0", 8);
+                memcpy(sections[cursection].Name, ".bss\0\0\0", 8);
                 sections[cursection].Misc.VirtualSize = 0;
                 sections[cursection].VirtualAddress = 0;
                 sections[cursection].SizeOfRawData = BSSSymbols[i].Size;
-                sections[cursection].PointerToRawData = CurrentFilePos;
-                if (BSSSymbols[i].Relocations.size())
+                if (BSSSymbols[i].Data)
                 {
-                    sections[cursection].PointerToRelocations = CurrentFilePos;
-                    sections[cursection].NumberOfRelocations = (WORD)BSSSymbols[i].Relocations.size();
-                    CurrentFilePos += BSSSymbols[i].Relocations.size() * sizeof(IMAGE_RELOCATION);
-                    sectionrelocations[cursection] = new IMAGE_RELOCATION[BSSSymbols[i].Relocations.size()];
-                    sectionrelocsymbols[cursection] = &BSSSymbols[i].Relocations;
-                    for (size_t j = 0; j < BSSSymbols[i].Relocations.size(); j++)
+                    sections[cursection].PointerToRawData = CurrentFilePos;
+                    if (BSSSymbols[i].Relocations.size())
                     {
-                        sectionrelocations[cursection][j].VirtualAddress = BSSSymbols[i].Relocations[j].Rva;
-                        sectionrelocations[cursection][j].SymbolTableIndex = 0;
-                        sectionrelocations[cursection][j].Type = BSSSymbols[i].Relocations[j].Type;
+                        sections[cursection].PointerToRelocations = CurrentFilePos;
+                        sections[cursection].NumberOfRelocations = (WORD)BSSSymbols[i].Relocations.size();
+                        CurrentFilePos += BSSSymbols[i].Relocations.size() * sizeof(IMAGE_RELOCATION);
+                        sectionrelocations[cursection] = new IMAGE_RELOCATION[BSSSymbols[i].Relocations.size()];
+                        sectionrelocsymbols[cursection] = &BSSSymbols[i].Relocations;
+                        for (size_t j = 0; j < BSSSymbols[i].Relocations.size(); j++)
+                        {
+                            sectionrelocations[cursection][j].VirtualAddress = BSSSymbols[i].Relocations[j].Rva;
+                            sectionrelocations[cursection][j].SymbolTableIndex = 0;
+                            sectionrelocations[cursection][j].Type = BSSSymbols[i].Relocations[j].Type;
+                        }
+                    }
+                    else
+                    {
+                        sections[cursection].PointerToRelocations = 0;
+                        sections[cursection].NumberOfRelocations = 0;
+                        sectionrelocations[cursection] = 0;
+                        sectionrelocsymbols[cursection] = 0;
                     }
                 }
                 else
                 {
-                    sections[cursection].PointerToRelocations = 0;
-                    sections[cursection].NumberOfRelocations = 0;
-                    sectionrelocations[cursection] = 0;
-                    sectionrelocsymbols[cursection] = 0;
+                    sections[cursection].PointerToRawData = 0;
                 }
                 sections[cursection].PointerToLinenumbers = 0;
                 sections[cursection].NumberOfLinenumbers = 0;
-                sections[cursection].Characteristics = IMAGE_SCN_CNT_INITIALIZED_DATA | IMAGE_SCN_ALIGN_4BYTES | IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_WRITE;
-                sectiondata[cursection] = BSSSymbols[i].Data;
+                if (BSSSymbols[i].Data)
+                {
+                    sections[cursection].Characteristics = IMAGE_SCN_CNT_INITIALIZED_DATA | IMAGE_SCN_ALIGN_4BYTES | IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_WRITE;
+                    sectiondata[cursection] = BSSSymbols[i].Data;
+                    CurrentFilePos += BSSSymbols[i].Size;
+                }
+                else
+                {
+                    sections[cursection].Characteristics = IMAGE_SCN_CNT_UNINITIALIZED_DATA | IMAGE_SCN_ALIGN_4BYTES | IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_WRITE;
+                }
                 cursection++;
-                CurrentFilePos += BSSSymbols[i].Size;
                 BSSSymbols[i].SectionNumber = cursection;
                 BSSSymbols[i].SectionSymbolNumber = cursymnum;
-                memcpy(symbols[cursymbol].symbol.N.ShortName, ".data\0\0\0", 8);
+                memcpy(symbols[cursymbol].symbol.N.ShortName, ".bss\0\0\0", 8);
                 symbols[cursymbol].symbol.Value = 0;
                 symbols[cursymbol].symbol.SectionNumber = (SHORT)cursection;
                 symbols[cursymbol].symbol.Type = 0;
@@ -1304,7 +1274,14 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
                 symbols[cursymbol].aux.Section.Length = BSSSymbols[i].Size;
                 symbols[cursymbol].aux.Section.NumberOfRelocations = 0;
                 symbols[cursymbol].aux.Section.NumberOfLinenumbers = 0;
-                symbols[cursymbol].aux.Section.CheckSum = CRC_MS(BSSSymbols[i].Data, BSSSymbols[i].Size, 0);
+                if (BSSSymbols[i].Data)
+                {
+                    symbols[cursymbol].aux.Section.CheckSum = CRC_MS(BSSSymbols[i].Data, BSSSymbols[i].Size, 0);
+                }
+                else
+                {
+                    symbols[cursymbol].aux.Section.CheckSum = 0;
+                }
                 symbols[cursymbol].aux.Section.Number = 0;
                 symbols[cursymbol].aux.Section.Selection = 0;
                 symbols[cursymbol].aux.Section.bReserved = 0;
