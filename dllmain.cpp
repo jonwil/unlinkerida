@@ -572,16 +572,25 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
                     s.Address = ea;
                     s.Size = get_item_size(ea);
                     s.IsExtern = vector[i].is_extern;
-                    if (!s.IsExtern && is_loaded(s.Address))
+                    if (!s.IsExtern)
                     {
-                        s.Data = new unsigned char[s.Size];
-                        get_bytes(s.Data, s.Size, s.Address);
+                        if (is_loaded(s.Address))
+                        {
+                            s.Data = new unsigned char[s.Size];
+                            get_bytes(s.Data, s.Size, s.Address);
+                            DataSymbols.push_back(s);
+                        }
+                        else
+                        {
+                            s.Data = nullptr;
+                            BSSSymbols.push_back(s);
+                        }
                     }
                     else
                     {
                         s.Data = nullptr;
+                        DataSymbols.push_back(s);
                     }
-                    DataSymbols.push_back(s);
                 }
             }
             else if (segment == ".idata")
@@ -627,95 +636,131 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
                 int insn_size;
                 for (ea_t k = CodeSymbols[j].Address; k < CodeSymbols[j].Address + CodeSymbols[j].Size; k += insn_size)
                 {
-                    insn_size = decode_insn(&insn, k);
                     int pos = k - CodeSymbols[j].Address;
-                    switch (insn.ops[0].type)
+                    if (is_code(get_flags(k)) || is_align(get_flags(k)))
                     {
-                    case o_mem:
-                    case o_displ:
-                        if (!is_numop0(get_flags(k)) && IsSymbol(insn.ops[0].addr))
+                        insn_size = decode_insn(&insn, k);
+                        switch (insn.ops[0].type)
                         {
-                            Symbol& fsym = FindSymbol(insn.ops[0].addr);
-                            RelocationEntry r;
-                            r.Rva = pos + insn.ops[0].offb;
-                            r.Symbol = &fsym;
-                            unsigned int* data = (unsigned int*)(CodeSymbols[j].Data + pos + insn.ops[0].offb);
-                            unsigned int offset = insn.ops[0].addr - fsym.Address;
-                            *data = offset;
-                            CodeSymbols[j].Relocations.push_back(r);
+                        case o_mem:
+                        case o_displ:
+                            if (!is_numop0(get_flags(k)))
+                            {
+                                if (IsSymbol(insn.ops[0].addr))
+                                {
+                                    Symbol& fsym = FindSymbol(insn.ops[0].addr);
+                                    RelocationEntry r;
+                                    r.Rva = pos + insn.ops[0].offb;
+                                    r.Symbol = &fsym;
+                                    unsigned int* data = (unsigned int*)(CodeSymbols[j].Data + pos + insn.ops[0].offb);
+                                    unsigned int offset = insn.ops[0].addr - fsym.Address;
+                                    *data = offset;
+                                    CodeSymbols[j].Relocations.push_back(r);
+                                }
+                            }
+                            break;
+                        case o_imm:
+                            if (!is_numop0(get_flags(k)))
+                            {
+                                if (IsSymbol(insn.ops[0].value))
+                                {
+                                    Symbol& fsym = FindSymbol(insn.ops[0].value);
+                                    RelocationEntry r;
+                                    r.Rva = pos + insn.ops[0].offb;
+                                    r.Symbol = &fsym;
+                                    unsigned int* data = (unsigned int*)(CodeSymbols[j].Data + pos + insn.ops[0].offb);
+                                    unsigned int offset = insn.ops[0].value - fsym.Address;
+                                    *data = offset;
+                                    CodeSymbols[j].Relocations.push_back(r);
+                                }
+                            }
+                            break;
+                        case o_near:
+                            if (insn.ops[0].dtype == dt_dword && (insn.ops[0].addr < CodeSymbols[j].Address || insn.ops[0].addr > CodeSymbols[j].Address + CodeSymbols[j].Size))
+                            {
+                                if (IsSymbol(insn.ops[0].addr))
+                                {
+                                    Symbol& fsym = FindSymbol(insn.ops[0].addr);
+                                    RelocationEntry r;
+                                    r.Rva = pos + insn.ops[0].offb;
+                                    r.Symbol = &fsym;
+                                    r.Type = IMAGE_REL_I386_REL32;
+                                    unsigned int* data = (unsigned int*)(CodeSymbols[j].Data + pos + insn.ops[0].offb);
+                                    unsigned int offset = insn.ops[0].addr - fsym.Address;
+                                    *data = offset;
+                                    CodeSymbols[j].Relocations.push_back(r);
+                                }
+                            }
+                            break;
                         }
-                        break;
-                    case o_imm:
-                        if (!is_numop0(get_flags(k)) && IsSymbol(insn.ops[0].value))
+                        switch (insn.ops[1].type)
                         {
-                            Symbol& fsym = FindSymbol(insn.ops[0].value);
-                            RelocationEntry r;
-                            r.Rva = pos + insn.ops[0].offb;
-                            r.Symbol = &fsym;
-                            unsigned int* data = (unsigned int*)(CodeSymbols[j].Data + pos + insn.ops[0].offb);
-                            unsigned int offset = insn.ops[0].value - fsym.Address;
-                            *data = offset;
-                            CodeSymbols[j].Relocations.push_back(r);
+                        case o_mem:
+                        case o_displ:
+                            if (!is_numop0(get_flags(k)))
+                            {
+                                if (IsSymbol(insn.ops[1].addr))
+                                {
+                                    Symbol& fsym = FindSymbol(insn.ops[1].addr);
+                                    RelocationEntry r;
+                                    r.Rva = pos + insn.ops[1].offb;
+                                    r.Symbol = &fsym;
+                                    unsigned int* data = (unsigned int*)(CodeSymbols[j].Data + pos + insn.ops[1].offb);
+                                    unsigned int offset = insn.ops[1].addr - fsym.Address;
+                                    *data = offset;
+                                    CodeSymbols[j].Relocations.push_back(r);
+                                }
+                            }
+                            break;
+                        case o_imm:
+                            if (!is_numop1(get_flags(k)))
+                            {
+                                if (IsSymbol(insn.ops[1].value))
+                                {
+                                    Symbol& fsym = FindSymbol(insn.ops[1].value);
+                                    RelocationEntry r;
+                                    r.Rva = pos + insn.ops[1].offb;
+                                    r.Symbol = &fsym;
+                                    unsigned int* data = (unsigned int*)(CodeSymbols[j].Data + pos + insn.ops[1].offb);
+                                    unsigned int offset = insn.ops[1].value - fsym.Address;
+                                    *data = offset;
+                                    CodeSymbols[j].Relocations.push_back(r);
+                                }
+                            }
+                            break;
+                        case o_near:
+                            if (insn.ops[1].dtype == dt_dword && (insn.ops[1].addr < CodeSymbols[j].Address || insn.ops[1].addr > CodeSymbols[j].Address + CodeSymbols[j].Size))
+                            {
+                                if (IsSymbol(insn.ops[1].addr))
+                                {
+                                    Symbol& fsym = FindSymbol(insn.ops[1].addr);
+                                    RelocationEntry r;
+                                    r.Rva = pos + insn.ops[1].offb;
+                                    r.Symbol = &fsym;
+                                    r.Type = IMAGE_REL_I386_REL32;
+                                    unsigned int* data = (unsigned int*)(CodeSymbols[j].Data + pos + insn.ops[1].offb);
+                                    unsigned int offset = insn.ops[1].addr - fsym.Address;
+                                    *data = offset;
+                                    CodeSymbols[j].Relocations.push_back(r);
+                                }
+                            }
+                            break;
                         }
-                        break;
-                    case o_near:
-                        if (insn.ops[0].dtype == dt_dword && (insn.ops[0].addr < CodeSymbols[j].Address || insn.ops[0].addr > CodeSymbols[j].Address + CodeSymbols[j].Size) && IsSymbol(insn.ops[0].addr))
-                        {
-                            Symbol& fsym = FindSymbol(insn.ops[0].addr);
-                            RelocationEntry r;
-                            r.Rva = pos + insn.ops[0].offb;
-                            r.Symbol = &fsym;
-                            r.Type = IMAGE_REL_I386_REL32;
-                            unsigned int* data = (unsigned int*)(CodeSymbols[j].Data + pos + insn.ops[0].offb);
-                            unsigned int offset = insn.ops[0].addr - fsym.Address;
-                            *data = offset;
-                            CodeSymbols[j].Relocations.push_back(r);
-                        }
-                        break;
                     }
-                    switch (insn.ops[1].type)
+                    else
                     {
-                    case o_mem:
-                    case o_displ:
-                        if (!is_numop1(get_flags(k)) && IsSymbol(insn.ops[1].addr))
+                        insn_size = 4;
+                        unsigned int* data = (unsigned int*)(CodeSymbols[j].Data + pos);
+                        if (IsSymbol(*data))
                         {
-                            Symbol& fsym = FindSymbol(insn.ops[1].addr);
+                            Symbol& fsym = FindSymbol(*data);
                             RelocationEntry r;
-                            r.Rva = pos + insn.ops[1].offb;
+                            r.Rva = pos;
                             r.Symbol = &fsym;
-                            unsigned int* data = (unsigned int*)(CodeSymbols[j].Data + pos + insn.ops[1].offb);
-                            unsigned int offset = insn.ops[1].addr - fsym.Address;
+                            unsigned int offset = *data - fsym.Address;
                             *data = offset;
                             CodeSymbols[j].Relocations.push_back(r);
                         }
-                        break;
-                    case o_imm:
-                        if (!is_numop1(get_flags(k)) && IsSymbol(insn.ops[1].value))
-                        {
-                            Symbol& fsym = FindSymbol(insn.ops[1].value);
-                            RelocationEntry r;
-                            r.Rva = pos + insn.ops[1].offb;
-                            r.Symbol = &fsym;
-                            unsigned int* data = (unsigned int*)(CodeSymbols[j].Data + pos + insn.ops[1].offb);
-                            unsigned int offset = insn.ops[1].value - fsym.Address;
-                            *data = offset;
-                            CodeSymbols[j].Relocations.push_back(r);
-                        }
-                        break;
-                    case o_near:
-                        if (insn.ops[1].dtype == dt_dword && (insn.ops[1].addr < CodeSymbols[j].Address || insn.ops[1].addr > CodeSymbols[j].Address + CodeSymbols[j].Size) && IsSymbol(insn.ops[1].addr))
-                        {
-                            Symbol& fsym = FindSymbol(insn.ops[1].addr);
-                            RelocationEntry r;
-                            r.Rva = pos + insn.ops[1].offb;
-                            r.Symbol = &fsym;
-                            r.Type = IMAGE_REL_I386_REL32;
-                            unsigned int* data = (unsigned int*)(CodeSymbols[j].Data + pos + insn.ops[1].offb);
-                            unsigned int offset = insn.ops[1].addr - fsym.Address;
-                            *data = offset;
-                            CodeSymbols[j].Relocations.push_back(r);
-                        }
-                        break;
                     }
                 }
             }
@@ -727,13 +772,16 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
                 for (unsigned long k = 0; k < RDataSymbols[j].Size; k += 4)
                 {
                     unsigned int* data = (unsigned int *)(RDataSymbols[j].Data + k);
-                    Symbol& fsym = FindSymbol(*data);
-                    RelocationEntry r;
-                    r.Rva = k;
-                    r.Symbol = &fsym;
-                    unsigned int offset = *data - fsym.Address;
-                    *data = offset;
-                    RDataSymbols[j].Relocations.push_back(r);
+                    if (IsSymbol(*data))
+                    {
+                        Symbol& fsym = FindSymbol(*data);
+                        RelocationEntry r;
+                        r.Rva = k;
+                        r.Symbol = &fsym;
+                        unsigned int offset = *data - fsym.Address;
+                        *data = offset;
+                        RDataSymbols[j].Relocations.push_back(r);
+                    }
                 }
             }
         }
@@ -744,13 +792,16 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
                 for (unsigned long k = 0; k < DataSymbols[j].Size; k += 4)
                 {
                     unsigned int* data = (unsigned int*)(DataSymbols[j].Data + k);
-                    Symbol& fsym = FindSymbol(*data);
-                    RelocationEntry r;
-                    r.Rva = k;
-                    r.Symbol = &fsym;
-                    unsigned int offset = *data - fsym.Address;
-                    *data = offset;
-                    DataSymbols[j].Relocations.push_back(r);
+                    if (IsSymbol(*data))
+                    {
+                        Symbol& fsym = FindSymbol(*data);
+                        RelocationEntry r;
+                        r.Rva = k;
+                        r.Symbol = &fsym;
+                        unsigned int offset = *data - fsym.Address;
+                        *data = offset;
+                        DataSymbols[j].Relocations.push_back(r);
+                    }
                 }
             }
         }
@@ -988,15 +1039,14 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
                 }
                 sections[cursection].PointerToLinenumbers = 0;
                 sections[cursection].NumberOfLinenumbers = 0;
+                sections[cursection].Characteristics = IMAGE_SCN_CNT_INITIALIZED_DATA | IMAGE_SCN_ALIGN_16BYTES | IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_WRITE;
                 if (DataSymbols[i].Data)
                 {
-                    sections[cursection].Characteristics = IMAGE_SCN_CNT_INITIALIZED_DATA | IMAGE_SCN_ALIGN_4BYTES | IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_WRITE;
                     sectiondata[cursection] = DataSymbols[i].Data;
                 }
                 else
                 {
                     sectiondata[cursection] = 0;
-                    sections[cursection].Characteristics = IMAGE_SCN_CNT_UNINITIALIZED_DATA | IMAGE_SCN_ALIGN_4BYTES | IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_WRITE;
                 }
                 cursection++;
                 DataSymbols[i].SectionNumber = cursection;
@@ -1160,7 +1210,7 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
                 }
                 sections[cursection].PointerToLinenumbers = 0;
                 sections[cursection].NumberOfLinenumbers = 0;
-                sections[cursection].Characteristics = IMAGE_SCN_CNT_INITIALIZED_DATA | IMAGE_SCN_LNK_COMDAT | IMAGE_SCN_ALIGN_4BYTES | IMAGE_SCN_MEM_READ;
+                sections[cursection].Characteristics = IMAGE_SCN_CNT_INITIALIZED_DATA | IMAGE_SCN_LNK_COMDAT | IMAGE_SCN_ALIGN_16BYTES | IMAGE_SCN_MEM_READ;
                 sectiondata[cursection] = RDataSymbols[i].Data;
                 cursection++;
                 RDataSymbols[i].SectionNumber = cursection;
@@ -1264,15 +1314,14 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
                 }
                 sections[cursection].PointerToLinenumbers = 0;
                 sections[cursection].NumberOfLinenumbers = 0;
+                sections[cursection].Characteristics = IMAGE_SCN_CNT_UNINITIALIZED_DATA | IMAGE_SCN_ALIGN_16BYTES | IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_WRITE;
                 if (BSSSymbols[i].Data)
                 {
-                    sections[cursection].Characteristics = IMAGE_SCN_CNT_INITIALIZED_DATA | IMAGE_SCN_ALIGN_4BYTES | IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_WRITE;
                     sectiondata[cursection] = BSSSymbols[i].Data;
                 }
                 else
                 {
                     sectiondata[cursection] = 0;
-                    sections[cursection].Characteristics = IMAGE_SCN_CNT_UNINITIALIZED_DATA | IMAGE_SCN_ALIGN_4BYTES | IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_WRITE;
                 }
                 cursection++;
                 BSSSymbols[i].SectionNumber = cursection;
