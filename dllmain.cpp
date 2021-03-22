@@ -426,35 +426,35 @@ bool IsSymbol(unsigned long address)
 {
     for (size_t i = 0; i < CodeSymbols.size(); i++)
     {
-        if (address >= CodeSymbols[i].Address && address <= CodeSymbols[i].Address + CodeSymbols[i].Size)
+        if (address >= CodeSymbols[i].Address && address < CodeSymbols[i].Address + CodeSymbols[i].Size)
         {
             return true;
         }
     }
     for (size_t i = 0; i < RDataSymbols.size(); i++)
     {
-        if (address >= RDataSymbols[i].Address && address <= RDataSymbols[i].Address + RDataSymbols[i].Size)
+        if (address >= RDataSymbols[i].Address && address < RDataSymbols[i].Address + RDataSymbols[i].Size)
         {
             return true;
         }
     }
     for (size_t i = 0; i < DataSymbols.size(); i++)
     {
-        if (address >= DataSymbols[i].Address && address <= DataSymbols[i].Address + DataSymbols[i].Size)
+        if (address >= DataSymbols[i].Address && address < DataSymbols[i].Address + DataSymbols[i].Size)
         {
             return true;
         }
     }
     for (size_t i = 0; i < IDataSymbols.size(); i++)
     {
-        if (address >= IDataSymbols[i].Address && address <= IDataSymbols[i].Address + IDataSymbols[i].Size)
+        if (address >= IDataSymbols[i].Address && address < IDataSymbols[i].Address + IDataSymbols[i].Size)
         {
             return true;
         }
     }
     for (size_t i = 0; i < BSSSymbols.size(); i++)
     {
-        if (address >= BSSSymbols[i].Address && address <= BSSSymbols[i].Address + BSSSymbols[i].Size)
+        if (address >= BSSSymbols[i].Address && address < BSSSymbols[i].Address + BSSSymbols[i].Size)
         {
             return true;
         }
@@ -466,35 +466,35 @@ Symbol& FindSymbol(unsigned long address)
 {
     for (size_t i = 0; i < CodeSymbols.size(); i++)
     {
-        if (address >= CodeSymbols[i].Address && address <= CodeSymbols[i].Address + CodeSymbols[i].Size)
+        if (address >= CodeSymbols[i].Address && address < CodeSymbols[i].Address + CodeSymbols[i].Size)
         {
             return CodeSymbols[i];
         }
     }
     for (size_t i = 0; i < RDataSymbols.size(); i++)
     {
-        if (address >= RDataSymbols[i].Address && address <= RDataSymbols[i].Address + RDataSymbols[i].Size)
+        if (address >= RDataSymbols[i].Address && address < RDataSymbols[i].Address + RDataSymbols[i].Size)
         {
             return RDataSymbols[i];
         }
     }
     for (size_t i = 0; i < DataSymbols.size(); i++)
     {
-        if (address >= DataSymbols[i].Address && address <= DataSymbols[i].Address + DataSymbols[i].Size)
+        if (address >= DataSymbols[i].Address && address < DataSymbols[i].Address + DataSymbols[i].Size)
         {
             return DataSymbols[i];
         }
     }
     for (size_t i = 0; i < IDataSymbols.size(); i++)
     {
-        if (address >= IDataSymbols[i].Address && address <= IDataSymbols[i].Address + IDataSymbols[i].Size)
+        if (address >= IDataSymbols[i].Address && address < IDataSymbols[i].Address + IDataSymbols[i].Size)
         {
             return IDataSymbols[i];
         }
     }
     for (size_t i = 0; i < BSSSymbols.size(); i++)
     {
-        if (address >= BSSSymbols[i].Address && address <= BSSSymbols[i].Address + BSSSymbols[i].Size)
+        if (address >= BSSSymbols[i].Address && address < BSSSymbols[i].Address + BSSSymbols[i].Size)
         {
             return BSSSymbols[i];
         }
@@ -955,6 +955,7 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
                 if (DataSymbols[i].Data)
                 {
                     sections[cursection].PointerToRawData = CurrentFilePos;
+                    CurrentFilePos += DataSymbols[i].Size;
                     if (DataSymbols[i].Relocations.size())
                     {
                         sections[cursection].PointerToRelocations = CurrentFilePos;
@@ -991,7 +992,6 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
                 {
                     sections[cursection].Characteristics = IMAGE_SCN_CNT_INITIALIZED_DATA | IMAGE_SCN_ALIGN_4BYTES | IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_WRITE;
                     sectiondata[cursection] = DataSymbols[i].Data;
-                    CurrentFilePos += DataSymbols[i].Size;
                 }
                 else
                 {
@@ -1136,6 +1136,7 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
                 sections[cursection].VirtualAddress = 0;
                 sections[cursection].SizeOfRawData = RDataSymbols[i].Size;
                 sections[cursection].PointerToRawData = CurrentFilePos;
+                CurrentFilePos += RDataSymbols[i].Size;
                 if (RDataSymbols[i].Relocations.size())
                 {
                     sections[cursection].PointerToRelocations = CurrentFilePos;
@@ -1162,7 +1163,6 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
                 sections[cursection].Characteristics = IMAGE_SCN_CNT_INITIALIZED_DATA | IMAGE_SCN_LNK_COMDAT | IMAGE_SCN_ALIGN_4BYTES | IMAGE_SCN_MEM_READ;
                 sectiondata[cursection] = RDataSymbols[i].Data;
                 cursection++;
-                CurrentFilePos += RDataSymbols[i].Size;
                 RDataSymbols[i].SectionNumber = cursection;
                 RDataSymbols[i].SectionSymbolNumber = cursymnum;
                 memcpy(symbols[cursymbol].symbol.N.ShortName, ".rdata\0\0", 8);
@@ -1231,6 +1231,7 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
                 if (BSSSymbols[i].Data)
                 {
                     sections[cursection].PointerToRawData = CurrentFilePos;
+                    CurrentFilePos += BSSSymbols[i].Size;
                     if (BSSSymbols[i].Relocations.size())
                     {
                         sections[cursection].PointerToRelocations = CurrentFilePos;
@@ -1267,7 +1268,6 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
                 {
                     sections[cursection].Characteristics = IMAGE_SCN_CNT_INITIALIZED_DATA | IMAGE_SCN_ALIGN_4BYTES | IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_WRITE;
                     sectiondata[cursection] = BSSSymbols[i].Data;
-                    CurrentFilePos += BSSSymbols[i].Size;
                 }
                 else
                 {
