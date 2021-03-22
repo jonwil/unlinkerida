@@ -657,6 +657,10 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
                                     *data = offset;
                                     CodeSymbols[j].Relocations.push_back(r);
                                 }
+                                else
+                                {
+                                    msg("Symbol not found for address %x\n", k);
+                                }
                             }
                             break;
                         case o_imm:
@@ -672,6 +676,10 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
                                     unsigned int offset = insn.ops[0].value - fsym.Address;
                                     *data = offset;
                                     CodeSymbols[j].Relocations.push_back(r);
+                                }
+                                else
+                                {
+                                    msg("Symbol not found for address %x\n", k);
                                 }
                             }
                             break;
@@ -689,6 +697,10 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
                                     unsigned int offset = insn.ops[0].addr - fsym.Address;
                                     *data = offset;
                                     CodeSymbols[j].Relocations.push_back(r);
+                                }
+                                else
+                                {
+                                    msg("Symbol not found for address %x\n", k);
                                 }
                             }
                             break;
@@ -710,6 +722,10 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
                                     *data = offset;
                                     CodeSymbols[j].Relocations.push_back(r);
                                 }
+                                else
+                                {
+                                    msg("Symbol not found for address %x\n", k);
+                                }
                             }
                             break;
                         case o_imm:
@@ -725,6 +741,10 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
                                     unsigned int offset = insn.ops[1].value - fsym.Address;
                                     *data = offset;
                                     CodeSymbols[j].Relocations.push_back(r);
+                                }
+                                else
+                                {
+                                    msg("Symbol not found for address %x\n", k);
                                 }
                             }
                             break;
@@ -743,6 +763,10 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
                                     *data = offset;
                                     CodeSymbols[j].Relocations.push_back(r);
                                 }
+                                else
+                                {
+                                    msg("Symbol not found for address %x\n", k);
+                                }
                             }
                             break;
                         }
@@ -760,6 +784,10 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
                             unsigned int offset = *data - fsym.Address;
                             *data = offset;
                             CodeSymbols[j].Relocations.push_back(r);
+                        }
+                        else
+                        {
+                            msg("Symbol not found for address %x\n", k);
                         }
                     }
                 }
@@ -782,6 +810,10 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
                         *data = offset;
                         RDataSymbols[j].Relocations.push_back(r);
                     }
+                    else
+                    {
+                        msg("Symbol not found for address %x\n", *data);
+                    }
                 }
             }
         }
@@ -801,6 +833,10 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
                         unsigned int offset = *data - fsym.Address;
                         *data = offset;
                         DataSymbols[j].Relocations.push_back(r);
+                    }
+                    else
+                    {
+                        msg("Symbol not found for address %x\n", *data);
                     }
                 }
             }
