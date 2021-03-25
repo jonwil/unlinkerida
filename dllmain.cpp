@@ -240,6 +240,12 @@ void idaapi entry_chooser_t::get_row(
         if (get_func_name(&func_name, ea) > 0)
         {
             cols[0] = func_name;
+            size_t s = getinf(INF_SHORT_DEMNAMES);
+            qstring str;
+            if (demangle_name(&str, func_name.c_str(), s) > 0)
+            {
+                cols[0] = str;
+            }
             if (entries[n].is_extern)
             {
                 cols[1] = "Extern Function";
@@ -258,6 +264,12 @@ void idaapi entry_chooser_t::get_row(
         if (get_name(&data_name, ea) > 0)
         {
             cols[0] = data_name;
+            size_t s = getinf(INF_SHORT_DEMNAMES);
+            qstring str;
+            if (demangle_name(&str, data_name.c_str(), s) > 0)
+            {
+                cols[0] = str;
+            }
             if (entries[n].is_extern)
             {
                 cols[1] = "Extern Data";
