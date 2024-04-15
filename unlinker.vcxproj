@@ -76,9 +76,9 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;UNLINKER_EXPORTS;_WINDOWS;_USRDLL;__NT__;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>c:\temp\idasdk\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>c:\temp\idasdk_teams83\include</AdditionalIncludeDirectories>
       <TreatWarningAsError>true</TreatWarningAsError>
-      <DisableSpecificWarnings>4267;4514;4244;4820;4365;5204;4242;4626;5039;4201;5027;4100;4710;5045;4711</DisableSpecificWarnings>
+      <DisableSpecificWarnings>4267;4514;4244;4820;4365;5204;4242;4626;5039;4201;5027;4100;4710;5045;4711;4146</DisableSpecificWarnings>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -87,7 +87,7 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
       <AdditionalDependencies>ida.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>c:\temp\idasdk\lib\x64_win_vc_32</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>c:\temp\idasdk_teams83\lib\x64_win_vc_32</AdditionalLibraryDirectories>
       <TreatLinkerWarningAsErrors>true</TreatLinkerWarningAsErrors>
     </Link>
   </ItemDefinitionGroup>
