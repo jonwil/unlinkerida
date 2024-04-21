@@ -746,7 +746,7 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
 			qstring segment;
 			ea_t ea = vector[i].ea;
 			get_segm_name(&segment, getseg(ea));
-			if (segment == ".text")
+			if (segment == ".text" || segment == "BEGTEXT")
 			{
 				qstring func_name;
 				if (get_func_name(&func_name, ea) > 0)
@@ -789,7 +789,7 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
 					RDataSymbols.push_back(s);
 				}
 			}
-			else if (segment == ".data")
+			else if (segment == ".data" || segment == "DGROUP")
 			{
 				qstring data_name;
 				if (get_name(&data_name, ea) > 0)
