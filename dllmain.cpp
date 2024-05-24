@@ -121,6 +121,7 @@ struct Symbol
 };
 
 #define UNLINK_NAME "Unlink"
+#define UNLINK_FUNC_NAME "UnlinkFunc"
 #define UNLINK_EXTERN_NAME "Unlink Extern"
 #define UNLINK_EXPORT_NAME "Export Unlinked Modules"
 
@@ -592,6 +593,242 @@ struct ahandler_unlink_t : public action_handler_t
 };
 static ahandler_unlink_t ahandler_unlink;
 
+struct ahandler_unlink_func_t : public action_handler_t
+{
+	virtual int idaapi activate(action_activation_ctx_t* ctx) override
+	{
+		int i = get_module();
+		if (i != -1)
+		{
+			for (size_t x = 0, n = ctx->chooser_selection.size(); x < n; ++x)
+			{
+				func_t* func = getn_func(ctx->chooser_selection[x]);
+				ea_t ea = func->start_ea;
+				qstring func_name;
+				if (get_func_name(&func_name, ea) > 0)
+				{
+					iterate_func_chunks(get_func(ea), get_func_chunks, nullptr);
+					unlink_entry e;
+					e.ea = func_start;
+					e.is_extern = false;
+					e.module_index = i;
+					int func_size = func_end - func_start;
+					add_entry(e);
+					insn_t insn;
+					int insn_size;
+					for (ea_t k = func_start; k < func_start + func_size; k += insn_size)
+					{
+						if (is_code(get_flags(k)) || is_align(get_flags(k)))
+						{
+							insn_size = decode_insn(&insn, k);
+							switch (insn.ops[0].type)
+							{
+							case o_mem:
+							case o_displ:
+								if (!is_numop0(get_flags(k)))
+								{
+									if (is_code(get_flags(insn.ops[0].addr)))
+									{
+										qstring func_name2;
+										if (get_func_name(&func_name2, insn.ops[0].addr) > 0)
+										{
+											unlink_entry e2;
+											e2.ea = insn.ops[0].addr;
+											e2.is_extern = true;
+											e2.module_index = i;
+											add_entry(e2);
+										}
+									}
+									else if (is_data(get_flags(insn.ops[0].addr)))
+									{
+										qstring data_name2;
+										if (get_name(&data_name2, insn.ops[0].addr) > 0)
+										{
+											ea_t data_start = get_item_head(insn.ops[0].addr);
+											unlink_entry e2;
+											e2.ea = data_start;
+											e2.is_extern = true;
+											e2.module_index = i;
+											add_entry(e2);
+										}
+									}
+								}
+								break;
+							case o_imm:
+								if (!is_numop0(get_flags(k)))
+								{
+									if (is_code(get_flags(insn.ops[0].value)))
+									{
+										qstring func_name2;
+										if (get_func_name(&func_name2, insn.ops[0].value) > 0)
+										{
+											unlink_entry e2;
+											e2.ea = insn.ops[0].value;
+											e2.is_extern = true;
+											e2.module_index = i;
+											add_entry(e2);
+										}
+									}
+									else if (is_data(get_flags(insn.ops[0].value)))
+									{
+										qstring data_name2;
+										if (get_name(&data_name2, insn.ops[0].value) > 0)
+										{
+											ea_t data_start = get_item_head(insn.ops[0].value);
+											unlink_entry e2;
+											e2.ea = data_start;
+											e2.is_extern = true;
+											e2.module_index = i;
+											add_entry(e2);
+										}
+									}
+								}
+								break;
+							case o_near:
+								if (insn.ops[0].dtype == dt_dword && (insn.ops[0].addr < func_start || insn.ops[0].addr > func_start + func_size))
+								{
+									if (is_code(get_flags(insn.ops[0].addr)))
+									{
+										qstring func_name2;
+										if (get_func_name(&func_name2, insn.ops[0].addr) > 0)
+										{
+											unlink_entry e2;
+											e2.ea = insn.ops[0].addr;
+											e2.is_extern = true;
+											e2.module_index = i;
+											add_entry(e2);
+										}
+									}
+									else if (is_data(get_flags(insn.ops[0].addr)))
+									{
+										qstring data_name2;
+										if (get_name(&data_name2, insn.ops[0].addr) > 0)
+										{
+											ea_t data_start = get_item_head(insn.ops[0].addr);
+											unlink_entry e2;
+											e2.ea = data_start;
+											e2.is_extern = true;
+											e2.module_index = i;
+											add_entry(e2);
+										}
+									}
+								}
+								break;
+							}
+							switch (insn.ops[1].type)
+							{
+							case o_mem:
+							case o_displ:
+								if (!is_numop0(get_flags(k)))
+								{
+									if (is_code(get_flags(insn.ops[1].addr)))
+									{
+										qstring func_name2;
+										if (get_func_name(&func_name2, insn.ops[1].addr) > 0)
+										{
+											unlink_entry e2;
+											e2.ea = insn.ops[1].addr;
+											e2.is_extern = true;
+											e2.module_index = i;
+											add_entry(e2);
+										}
+									}
+									else if (is_data(get_flags(insn.ops[1].addr)))
+									{
+										qstring data_name2;
+										if (get_name(&data_name2, insn.ops[1].addr) > 0)
+										{
+											ea_t data_start = get_item_head(insn.ops[1].addr);
+											unlink_entry e2;
+											e2.ea = data_start;
+											e2.is_extern = true;
+											e2.module_index = i;
+											add_entry(e2);
+										}
+									}
+								}
+								break;
+							case o_imm:
+								if (!is_numop1(get_flags(k)))
+								{
+									if (is_code(get_flags(insn.ops[1].value)))
+									{
+										qstring func_name2;
+										if (get_func_name(&func_name2, insn.ops[1].value) > 0)
+										{
+											unlink_entry e2;
+											e2.ea = insn.ops[1].value;
+											e2.is_extern = true;
+											e2.module_index = i;
+											add_entry(e2);
+										}
+									}
+									else if (is_data(get_flags(insn.ops[1].value)))
+									{
+										qstring data_name2;
+										if (get_name(&data_name2, insn.ops[1].value) > 0)
+										{
+											ea_t data_start = get_item_head(insn.ops[1].value);
+											unlink_entry e2;
+											e2.ea = data_start;
+											e2.is_extern = true;
+											e2.module_index = i;
+											add_entry(e2);
+										}
+									}
+								}
+								break;
+							case o_near:
+								if (insn.ops[1].dtype == dt_dword && (insn.ops[1].addr < func_start || insn.ops[1].addr > func_start + func_size))
+								{
+									if (is_code(get_flags(insn.ops[1].addr)))
+									{
+										qstring func_name2;
+										if (get_func_name(&func_name2, insn.ops[1].addr) > 0)
+										{
+											unlink_entry e2;
+											e2.ea = insn.ops[1].addr;
+											e2.is_extern = true;
+											e2.module_index = i;
+											add_entry(e2);
+										}
+									}
+									else if (is_data(get_flags(insn.ops[1].addr)))
+									{
+										qstring data_name2;
+										if (get_name(&data_name2, insn.ops[1].addr) > 0)
+										{
+											ea_t data_start = get_item_head(insn.ops[1].addr);
+											unlink_entry e2;
+											e2.ea = data_start;
+											e2.is_extern = true;
+											e2.module_index = i;
+											add_entry(e2);
+										}
+									}
+								}
+								break;
+							}
+						}
+						else
+						{
+							insn_size = 4;
+						}
+					}
+				}
+			}
+		}
+
+		return true;
+	}
+
+	virtual action_state_t idaapi update(action_update_ctx_t*) override
+	{
+		return AST_ENABLE_ALWAYS;
+	}
+};
+static ahandler_unlink_func_t ahandler_unlink_func;
+
 struct ahandler_unlink_extern_t : public action_handler_t
 {
 	virtual int idaapi activate(action_activation_ctx_t*) override
@@ -766,6 +1003,27 @@ void export_unlinked_module(qstring name, qvector<unlink_entry>& vector)
 						s.Data = nullptr;
 					}
 					CodeSymbols.push_back(s);
+				}
+				else
+				{
+					qstring data_name;
+					if (get_name(&data_name, ea) > 0)
+					{
+						s.Name = data_name;
+						s.Address = ea;
+						s.Size = get_item_size(ea);
+						s.IsExtern = vector[i].is_extern;
+						if (!s.IsExtern)
+						{
+							s.Data = new unsigned char[s.Size];
+							get_bytes(s.Data, s.Size, s.Address);
+						}
+						else
+						{
+							s.Data = nullptr;
+						}
+						RDataSymbols.push_back(s);
+					}
 				}
 			}
 			else if (segment == ".rdata")
@@ -1711,6 +1969,7 @@ struct plugin_ctx_t : public plugmod_t, public event_listener_t
 		const action_desc_t actions[] =
 		{
 		  ACTION_DESC_LITERAL_PLUGMOD(UNLINK_NAME, "Unlink", &ahandler_unlink, this, NULL, NULL, -1),
+		  ACTION_DESC_LITERAL_PLUGMOD(UNLINK_FUNC_NAME, "Unlink", &ahandler_unlink_func, this, NULL, NULL, -1),
 		  ACTION_DESC_LITERAL_PLUGMOD(UNLINK_EXTERN_NAME, "Unlink Extern", &ahandler_unlink_extern, this, NULL, NULL, -1),
 		  ACTION_DESC_LITERAL_PLUGMOD(UNLINK_EXPORT_NAME, "Export Unlinked Modules", &ahandler_unlink_export, this, NULL, NULL, -1)
 		};
@@ -1754,6 +2013,12 @@ ssize_t idaapi plugin_ctx_t::on_event(ssize_t code, va_list va)
 				TPopupMenu* p = va_arg(va, TPopupMenu*);
 				attach_action_to_popup(view, p, UNLINK_NAME);
 				attach_action_to_popup(view, p, UNLINK_EXTERN_NAME);
+			}
+
+			if (get_widget_type(view) == BWN_FUNCS)
+			{
+				TPopupMenu* p = va_arg(va, TPopupMenu*);
+				attach_action_to_popup(view, p, UNLINK_FUNC_NAME);
 			}
 		}
 	}
